@@ -1,0 +1,76 @@
+<style>
+  [data-visibility="hidden"] {
+    opacity: 0;
+  }
+</style>
+
+<noscript>
+  <style>
+    [data-variant="test"] {
+      display: none !important;
+      opacity: 0 !important;
+    }
+    [data-variant="control"] {
+      display: block !important;
+      opacity: 1 !important;
+    }
+  </style>
+</noscript>
+
+<script>
+  let currentVariant = null;
+
+  function applyVariant(variant) {
+    if (variant === currentVariant) return; // Skip if no change
+    currentVariant = variant;
+
+    const testElement = document.querySelector('[data-variant="test"]');
+    const controlElement = document.querySelector('[data-variant="control"]');
+
+    if (testElement) {
+      testElement.style.display = variant === "test" ? "block" : "none";
+      testElement.style.opacity = variant === "test" ? "1" : "0";
+    }
+    if (controlElement) {
+      controlElement.style.display = variant === "test" ? "none" : "block";
+      controlElement.style.opacity = variant === "test" ? "0" : "1";
+    }
+    console.log("Variant applied:", variant);
+  }
+
+  function checkFeatureFlags() {
+    console.time("FeatureFlagsExecutionTime");
+    const flagValue = window.posthog.getFeatureFlag("ffep-in-hero");
+    console.log("Feature flag value:", flagValue);
+    applyVariant(flagValue === "test" ? "test" : "control");
+    console.timeEnd("FeatureFlagsExecutionTime");
+    console.timeEnd("TotalExecutionTime");
+  }
+
+  function handlePostHogLoaded() {
+    if (window.posthog && typeof window.posthog.getFeatureFlag === "function") {
+      checkFeatureFlags(); // Only check once
+    } else {
+      console.error("PostHog not available after 'posthog_loaded' event");
+    }
+  }
+
+  function initializeFeatureFlag() {
+    console.time("TotalExecutionTime");
+    if (window.posthog && typeof window.posthog.getFeatureFlag === "function") {
+      handlePostHogLoaded();
+    } else {
+      window.addEventListener("posthog_loaded", handlePostHogLoaded, { once: true });
+    }
+
+    // Fallback in case the event is not dispatched
+    setTimeout(function () {
+      if (!window.posthog || typeof window.posthog.getFeatureFlag !== "function") {
+        console.error("PostHog failed to load within 10 seconds");
+        window.removeEventListener("posthog_loaded", handlePostHogLoaded);
+      }
+    }, 10000);
+  }
+
+  window.addEventListener("load", initializeFeatureFlag);
+</script>

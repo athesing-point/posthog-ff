@@ -1,0 +1,70 @@
+<!-- Hide the test version of the object -->
+<style>
+  [data-visibility="hidden"] {
+    opacity: 0;
+  }
+</style>
+
+<!-- check for posthog being loaded via a mutation observer then run the checkFeatureFlags function -->
+<script>
+  // Function to check and apply feature flags
+  function checkFeatureFlags() {
+    console.time("FeatureFlagsExecutionTime"); // Start the timer for feature flag checks
+
+    if (posthog.getFeatureFlag("ffep-in-hero") === "test") {
+      // Change the opacity of elements based on the feature flag (elements are tagged with data-test-variant attributes)
+      const testElement = document.querySelector('[data-variant="test"]');
+      const controlElement = document.querySelector('[data-variant="control"]');
+
+      if (testElement) {
+        testElement.style.opacity = "1";
+      }
+      if (controlElement) {
+        controlElement.style.display = "none";
+      }
+    } else {
+      // Leave the control element as is
+      console.log("ffep-in-hero control");
+    }
+
+    console.timeEnd("FeatureFlagsExecutionTime"); // End the timer for feature flag checks
+    console.timeEnd("TotalExecutionTime"); // End the total execution timer
+  }
+
+  // Function to initialize the observer for PostHog
+  function observePostHogInitialization() {
+    const observer = new MutationObserver((mutationsList, observer) => {
+      for (let mutation of mutationsList) {
+        if (mutation.type === "childList") {
+          if (typeof posthog !== "undefined" && posthog.getFeatureFlag) {
+            observer.disconnect(); // Stop observing once PostHog is ready
+            checkFeatureFlags();
+            break;
+          }
+        }
+      }
+    });
+
+    // Start observing the document for changes
+    observer.observe(document, { childList: true, subtree: true });
+
+    // Fallback to setInterval in case MutationObserver misses the initialization
+    const intervalId = setInterval(() => {
+      if (typeof posthog !== "undefined" && posthog.getFeatureFlag) {
+        clearInterval(intervalId); // Stop checking once PostHog is ready
+        observer.disconnect(); // Ensure observer is also disconnected
+        checkFeatureFlags();
+      }
+    }, 100); // Check every 100ms
+  }
+
+  // Execute the observer function after the window 'load' event
+  window.addEventListener("load", function () {
+    console.time("TotalExecutionTime"); // Start the total execution timer
+    if (typeof posthog !== "undefined" && posthog.getFeatureFlag) {
+      checkFeatureFlags();
+    } else {
+      observePostHogInitialization();
+    }
+  });
+</script>
