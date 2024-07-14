@@ -1,0 +1,103 @@
+<!-- Hide the test version of the object -->
+<style>
+  [data-visibility="visible"] {
+    opacity: 1;
+    display: block;
+    transition: opacity 0.1s linear;
+  }
+  [data-visibility="hidden"] {
+    /* display: none; */
+    opacity: 0;
+  }
+</style>
+
+<noscript>
+  <style>
+    [data-variant="control"] {
+      opacity: 1;
+      display: block;
+    }
+  </style>
+</noscript>
+
+<script>
+  // Function to check and apply feature flags
+  function checkFeatureFlags() {
+    try {
+      const featureFlagValue = posthog.getFeatureFlag("ffep-in-hero");
+      console.log(`ffep-in-hero variant: ${featureFlagValue}`);
+
+      const testElement = document.querySelector('[data-variant="test"]');
+      const controlElement = document.querySelector('[data-variant="control"]');
+
+      if (featureFlagValue === "test" && testElement) {
+        setVisibility(testElement, "visible");
+        if (controlElement) setVisibility(controlElement, "hidden");
+        const heroHeightElements = document.querySelectorAll('[data-attr="hero-height"]');
+        heroHeightElements.forEach((element) => {
+          element.classList.add("with-offset-form");
+        });
+      } else {
+        if (controlElement) setVisibility(controlElement, "visible");
+        if (testElement) setVisibility(testElement, "hidden");
+      }
+    } catch (error) {
+      console.error("Error in checkFeatureFlags:", error);
+      defaultToControl();
+    }
+  }
+
+  function setVisibility(element, visibility) {
+    element.setAttribute("data-visibility", visibility);
+    if (visibility === "visible") {
+      element.style.display = "block";
+      // Use setTimeout to ensure the display change takes effect before changing opacity
+      setTimeout(() => (element.style.opacity = "1"), 0);
+    } else {
+      element.style.opacity = "0";
+      // Use setTimeout to wait for opacity transition before hiding the element
+      setTimeout(() => (element.style.display = "none"), 300);
+    }
+  }
+
+  function defaultToControl() {
+    const controlElement = document.querySelector('[data-variant="control"]');
+    if (controlElement) setVisibility(controlElement, "visible");
+  }
+
+  // Function to initialize the observer for PostHog
+  function observePostHogInitialization() {
+    const observer = new MutationObserver((mutationsList, observer) => {
+      for (let mutation of mutationsList) {
+        if (mutation.type === "childList") {
+          if (typeof posthog !== "undefined" && posthog.getFeatureFlag) {
+            observer.disconnect(); // Stop observing once PostHog is ready
+            checkFeatureFlags();
+            break;
+          }
+        }
+      }
+    });
+
+    // Start observing the document for changes
+    observer.observe(document, { childList: true, subtree: true });
+
+    // Set a timeout to default to control if PostHog doesn't load
+    setTimeout(() => {
+      if (typeof posthog === "undefined" || !posthog.getFeatureFlag) {
+        observer.disconnect();
+        defaultToControl();
+      }
+    }, 3000); // 5 second timeout
+  }
+
+  // Execute the observer function after the window 'load' event
+  window.addEventListener("load", function () {
+    // console.time("TotalExecutionTime"); // Start the total execution timer
+    if (typeof posthog !== "undefined" && posthog.getFeatureFlag) {
+      checkFeatureFlags();
+    } else {
+      observePostHogInitialization();
+    }
+  });
+</script>
